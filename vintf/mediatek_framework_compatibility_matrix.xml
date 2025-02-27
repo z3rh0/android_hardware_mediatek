@@ -312,6 +312,14 @@
         </interface>
     </hal>
     <hal format="aidl" optional="true">
+        <name>vendor.mediatek.hardware.gnss</name>
+        <version>2</version>
+        <interface>
+            <name>IMtkGnss</name>
+            <instance>default</instance>
+        </interface>
+    </hal>
+    <hal format="aidl" optional="true">
         <name>vendor.mediatek.hardware.gnss.batching</name>
         <version>1</version>
         <interface>
