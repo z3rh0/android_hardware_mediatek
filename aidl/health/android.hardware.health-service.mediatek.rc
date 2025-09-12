@@ -17,5 +17,7 @@ service vendor.charger /vendor/bin/hw/android.hardware.health-service.mediatek -
     file /proc/last_kmsg r
 
 on charger
-    chown system system /dev/graphics/fb0
     chown system system /dev/dri/card0
+
+    chmod 0660 /dev/graphics/fb0
+    chown system graphics /dev/graphics/fb0
