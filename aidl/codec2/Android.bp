@@ -11,7 +11,10 @@ cc_binary {
         "libcodec2-aidl-defaults",
     ],
 
-    required: ["android.hardware.media.c2-default-seccomp_policy"],
+    required: [
+        "android.hardware.media.c2-mediatek-seccomp-policy",
+        "android.hardware.media.c2-extended-seccomp-policy",
+    ],
 
     srcs: [
         "vendor.cpp",
@@ -21,5 +24,23 @@ cc_binary {
         "libavservices_minijail",
         "libbinder",
         "libbinder_ndk",
+    ],
+}
+
+prebuilt_etc {
+    name: "android.hardware.media.c2-mediatek-seccomp-policy",
+    vendor: true,
+    sub_dir: "seccomp_policy",
+    srcs: [
+	"seccomp_policy/android.hardware.media.c2-mediatek-seccomp-policy",
+    ],
+}
+
+prebuilt_etc {
+    name: "android.hardware.media.c2-extended-seccomp-policy",
+    vendor: true,
+    sub_dir: "seccomp_policy",
+    srcs: [
+        "seccomp_policy/android.hardware.media.c2-extended-seccomp-policy",
     ],
 }

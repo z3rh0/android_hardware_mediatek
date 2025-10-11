@@ -36,16 +36,16 @@
 #include <codec2/aidl/ParamTypes.h>
 
 // This is the absolute on-device path of the prebuild_etc module
-// "android.hardware.media.c2-default-seccomp_policy" in Android.bp.
+// "android.hardware.media.c2-mediatek-seccomp_policy" in Android.bp.
 static constexpr char kBaseSeccompPolicyPath[] =
         "/vendor/etc/seccomp_policy/"
-        "android.hardware.media.c2-default-seccomp_policy";
+        "android.hardware.media.c2-mediatek-seccomp-policy";
 
 // Additional seccomp permissions can be added in this file.
 // This file does not exist by default.
 static constexpr char kExtSeccompPolicyPath[] =
         "/vendor/etc/seccomp_policy/"
-        "android.hardware.media.c2-extended-seccomp_policy";
+        "android.hardware.media.c2-extended-seccomp-policy";
 
 // We want multiple threads to be running so that a blocking operation
 // on one codec does not block the other codecs.
