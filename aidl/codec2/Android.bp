@@ -1,3 +1,8 @@
+//
+// SPDX-FileCopyrightText: The LineageOS Project
+// SPDX-License-Identifier: Apache-2.0
+//
+
 cc_binary {
     name: "android.hardware.media.c2-mtk-service",
     vendor: true,
@@ -24,7 +29,13 @@ cc_binary {
         "libavservices_minijail",
         "libbinder",
         "libbinder_ndk",
+        "libcodec2_mtk_c2store",
     ],
+}
+
+cc_library_shared {
+    name: "libcodec2_mtk_c2store",
+    soc_specific: true,
 }
 
 prebuilt_etc {
