@@ -1,5 +1,6 @@
 //
 // Copyright 2016 The Android Open Source Project
+// Copyright 2024-2025 NXP
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,11 +23,7 @@
 #include <unistd.h>
 #include <utils/Log.h>
 
-namespace android {
-namespace hardware {
-namespace bluetooth {
-namespace V1_0 {
-namespace implementation {
+namespace aidl::android::hardware::bluetooth::impl {
 
 void BluetoothAddress::bytes_to_string(const uint8_t* addr, char* addr_str) {
   sprintf(addr_str, "%02x:%02x:%02x:%02x:%02x:%02x", addr[0], addr[1], addr[2],
@@ -67,7 +64,7 @@ bool BluetoothAddress::get_local_address(uint8_t* local_addr) {
       const uint8_t zero_bdaddr[kBytes] = {0, 0, 0, 0, 0, 0};
       if ((string_to_bytes(address, local_addr)) &&
           (memcmp(local_addr, zero_bdaddr, kBytes) != 0)) {
-        ALOGD("%s: Got Factory BDA", __func__);
+        ALOGD("%s: Got Factory BDA %s", __func__, address);
         return true;
       } else {
         ALOGE("%s: Got Invalid BDA '%s' from %s", __func__, address, property);
@@ -78,22 +75,16 @@ bool BluetoothAddress::get_local_address(uint8_t* local_addr) {
   // No BDADDR found in the file. Look for BDA in a factory property.
   if (property_get(FACTORY_BDADDR_PROPERTY, property, NULL) &&
       string_to_bytes(property, local_addr)) {
-    ALOGD("%s: Using FACTORY_BDADDR_PROPERTY", __func__);
     return true;
   }
 
   // No factory BDADDR found. Look for a previously stored BDA.
   if (property_get(PERSIST_BDADDR_PROPERTY, property, NULL) &&
       string_to_bytes(property, local_addr)) {
-    ALOGD("%s: Using PERSIST_BDADDR_PROPERTY", __func__);
     return true;
   }
 
   return false;
 }
 
-}  // namespace implementation
-}  // namespace V1_0
-}  // namespace bluetooth
-}  // namespace hardware
-}  // namespace android
+}  // namespace aidl::android::hardware::bluetooth::impl
