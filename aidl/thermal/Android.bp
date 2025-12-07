@@ -16,7 +16,7 @@ cc_binary {
     ],
     vendor: true,
     relative_install_path: "hw",
-    vintf_fragments: [
+    vintf_fragment_modules: [
         "android.hardware.thermal-service.mediatek.xml",
     ],
     init_rc: [
@@ -62,6 +62,12 @@ cc_binary {
         "clang-analyzer-security*",
         "cert-*",
     ],
+}
+
+vintf_fragment {
+    name: "android.hardware.thermal-service.mediatek.xml",
+    src: "android.hardware.thermal-service.mediatek.xml",
+    vendor: true,
 }
 
 sh_binary {

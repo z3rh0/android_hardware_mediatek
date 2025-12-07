@@ -134,8 +134,7 @@ bool PowerFiles::registerPowerRailsToWatch(
         LOG(INFO) << "Successfully to register power rail " << power_rail_info_pair.first;
     }
 
-    power_status_log_ = {.prev_log_time = boot_clock::now(),
-                         .prev_energy_info_map = energy_info_map_};
+    prev_energy_info_map_ = energy_info_map_;
     return true;
 }
 
@@ -364,19 +363,17 @@ void PowerFiles::powerSamplingSwitch(std::string_view power_rail, const bool ena
     }
 }
 
-void PowerFiles::logPowerStatus(const boot_clock::time_point &now) {
+void PowerFiles::logPowerStatus(const std::unordered_set<std::string> &excluded_power_set) {
     // calculate energy and print
     uint8_t power_rail_log_cnt = 0;
     uint64_t max_duration = 0;
     float tot_power = 0.0;
     std::string out;
-    for (const auto &energy_info_pair : energy_info_map_) {
-        const auto &rail = energy_info_pair.first;
-        if (!power_status_log_.prev_energy_info_map.count(rail)) {
+    for (const auto &[rail, curr_sample] : energy_info_map_) {
+        if (!prev_energy_info_map_.contains(rail)) {
             continue;
         }
-        const auto &last_sample = power_status_log_.prev_energy_info_map.at(rail);
-        const auto &curr_sample = energy_info_pair.second;
+        const auto &last_sample = prev_energy_info_map_.at(rail);
         float avg_power = NAN;
         if (calculateAvgPower(rail, last_sample, curr_sample, &avg_power) &&
             !std::isnan(avg_power)) {
@@ -388,9 +385,11 @@ void PowerFiles::logPowerStatus(const boot_clock::time_point &now) {
                 out.append("Power rails ");
             }
             out.append(StringPrintf("[%s: %0.2f mW] ", rail.c_str(), avg_power));
-            power_rail_log_cnt++;
-            tot_power += avg_power;
-            max_duration = std::max(max_duration, curr_sample.duration - last_sample.duration);
+            if (!excluded_power_set.contains(rail)) {
+                power_rail_log_cnt++;
+                tot_power += avg_power;
+                max_duration = std::max(max_duration, curr_sample.duration - last_sample.duration);
+            }
         }
     }
 
@@ -399,7 +398,7 @@ void PowerFiles::logPowerStatus(const boot_clock::time_point &now) {
                                   max_duration);
         LOG(INFO) << out;
     }
-    power_status_log_ = {.prev_log_time = now, .prev_energy_info_map = energy_info_map_};
+    prev_energy_info_map_ = energy_info_map_;
 }
 
 }  // namespace implementation

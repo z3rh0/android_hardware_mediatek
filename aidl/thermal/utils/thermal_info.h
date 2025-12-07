@@ -30,10 +30,10 @@ constexpr size_t kThrottlingSeverityCount =
                       ::ndk::enum_range<ThrottlingSeverity>().end());
 using ThrottlingArray = std::array<float, static_cast<size_t>(kThrottlingSeverityCount)>;
 using CdevArray = std::array<int, static_cast<size_t>(kThrottlingSeverityCount)>;
+using ::android::base::boot_clock;
 constexpr std::chrono::milliseconds kMinPollIntervalMs = std::chrono::milliseconds(2000);
+constexpr std::chrono::milliseconds kLogIntervalMs = std::chrono::milliseconds(60000);
 constexpr std::chrono::milliseconds kUeventPollTimeoutMs = std::chrono::milliseconds(300000);
-// TODO(b/292044404): Add debug config to make them easily configurable
-constexpr std::chrono::milliseconds kPowerLogIntervalMs = std::chrono::milliseconds(60000);
 constexpr int kMaxPowerLogPerLine = 6;
 // Max number of time_in_state buckets is 20 in atoms
 // VendorSensorCoolingDeviceStats, VendorTempResidencyStats
@@ -134,7 +134,7 @@ struct VirtualSensorInfo {
     std::vector<SensorFusionType> linked_sensors_type;
     std::vector<std::string> coefficients;
     std::vector<SensorFusionType> coefficients_type;
-
+    std::vector<float> count_threshold_hyst;
     float offset;
     std::vector<std::string> trigger_sensors;
     FormulaOption formula;
@@ -202,6 +202,9 @@ struct ThrottlingInfo {
     ThrottlingArray min_alloc_power;
     ThrottlingArray s_power;
     ThrottlingArray i_cutoff;
+    // Increase power budget by I only when thermal rising per min is equal or lower than
+    // i_trend
+    float i_trend;
     float i_default;
     float i_default_pct;
     int tran_cycle;
@@ -210,15 +213,22 @@ struct ThrottlingInfo {
     ProfileMap profile_map;
 };
 
+// Type of temp path to read the sensor data.
+enum class TempPathType : uint32_t {
+    SYSFS = 0,        // Default, read from sysfs
+    DEVICE_PROPERTY,  // Read from device property
+};
+
 struct SensorInfo {
     TemperatureType type;
     ThrottlingArray hot_thresholds;
     ThrottlingArray cold_thresholds;
     ThrottlingArray hot_hysteresis;
     ThrottlingArray cold_hysteresis;
+    TempPathType temp_path_type;
     std::string temp_path;
-    std::vector<std::string> severity_reference;
     std::string zone_name;
+    std::vector<std::string> severity_reference;
     float vr_threshold;
     float multiplier;
     std::chrono::milliseconds polling_delay;
@@ -236,6 +246,7 @@ struct SensorInfo {
     std::unique_ptr<VirtualSensorInfo> virtual_sensor_info;
     std::shared_ptr<ThrottlingInfo> throttling_info;
     std::unique_ptr<PredictorInfo> predictor_info;
+    int thermal_sample_count;
 };
 
 struct CdevInfo {
@@ -252,6 +263,12 @@ struct PowerRailInfo {
     int power_sample_count;
     std::chrono::milliseconds power_sample_delay;
     std::unique_ptr<VirtualPowerRailInfo> virtual_power_rail_info;
+};
+
+struct LogStatus {
+    std::unordered_set<std::string> excluded_power_set;
+    std::chrono::milliseconds log_interval_ms = kLogIntervalMs;
+    boot_clock::time_point prev_log_time;
 };
 
 bool LoadThermalConfig(std::string_view config_path, Json::Value *config);
@@ -275,6 +292,8 @@ bool ParseCoolingDeviceStatsConfig(
         const Json::Value &config,
         const std::unordered_map<std::string, CdevInfo> &cooling_device_info_map_,
         StatsInfo<int> *cooling_device_request_info_parsed);
+
+void ParseThermalLogInfo(const Json::Value &config, LogStatus *log_status);
 }  // namespace implementation
 }  // namespace thermal
 }  // namespace hardware

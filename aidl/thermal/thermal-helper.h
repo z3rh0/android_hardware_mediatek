@@ -38,6 +38,13 @@ using ::android::sp;
 
 using NotificationCallback = std::function<void(const Temperature &t)>;
 
+#define INVALID_TEMPERATURE_KERNEL -274000
+#define UNDEFINED_TEMPERATURE -FLT_MAX
+
+#define TEMP_CONVERSION(temp_val, sensor_info)                          \
+    (((temp_val) == INVALID_TEMPERATURE_KERNEL) ? UNDEFINED_TEMPERATURE \
+                                                : ((temp_val) * sensor_info.multiplier))
+
 // Get thermal_zone type
 bool getThermalZoneTypeById(int tz_id, std::string *);
 
@@ -63,6 +70,8 @@ struct SensorStatus {
     ThrottlingSeverity prev_cold_severity;
     boot_clock::time_point last_update_time;
     ThermalSample thermal_cached;
+    std::vector<bool> count_threshold_counted;
+    std::queue<ThermalSample> thermal_history;
     bool pending_notification;
     OverrideStatus override_status;
 };
@@ -220,6 +229,7 @@ class ThermalHelperImpl : public ThermalHelper {
     size_t getPredictionMaxWindowMs(std::string_view sensor_name);
     float readPredictionAfterTimeMs(std::string_view sensor_name, const size_t time_ms);
     bool readTemperaturePredictions(std::string_view sensor_name, std::vector<float> *predictions);
+    float getThermalRising(const SensorStatus &sensor_status, const ThermalSample &curr_sample);
     void updateCoolingDevices(const std::vector<std::string> &cooling_devices_to_update);
     // Check the max throttling for binded cooling device
     void maxCoolingRequestCheck(
@@ -228,6 +238,7 @@ class ThermalHelperImpl : public ThermalHelper {
     ThrottlingSeverity getSeverityReference(std::string_view sensor_name);
 
     sp<ThermalWatcher> thermal_watcher_;
+    LogStatus log_status_;
     PowerFiles power_files_;
     ThermalFiles thermal_sensors_;
     ThermalFiles cooling_devices_;

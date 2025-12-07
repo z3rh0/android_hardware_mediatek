@@ -38,12 +38,6 @@ struct PowerStatus {
     bool enabled;
 };
 
-struct PowerStatusLog {
-    boot_clock::time_point prev_log_time;
-    // energy sample at last logging
-    std::unordered_map<std::string, PowerSample> prev_energy_info_map;
-};
-
 // A helper class for monitoring power rails.
 class PowerFiles {
   public:
@@ -58,13 +52,9 @@ class PowerFiles {
     // Update the power data from ODPM sysfs
     bool refreshPowerStatus(void);
     // Log the power data for the duration
-    void logPowerStatus(const boot_clock::time_point &now);
+    void logPowerStatus(const std::unordered_set<std::string> &excluded_power_set);
     // OnOff the power calculation
     void powerSamplingSwitch(std::string_view power_rail, const bool enabled);
-    // Get previous power log time_point
-    const boot_clock::time_point &GetPrevPowerLogTime() const {
-        return power_status_log_.prev_log_time;
-    }
     // Get power status map
     const std::unordered_map<std::string, PowerStatus> &GetPowerStatusMap() const {
         std::shared_lock<std::shared_mutex> _lock(power_status_map_mutex_);
@@ -93,7 +83,8 @@ class PowerFiles {
     std::unordered_map<std::string, PowerRailInfo> power_rail_info_map_;
     // The set to store the energy source paths
     std::unordered_set<std::string> energy_path_set_;
-    PowerStatusLog power_status_log_;
+    // energy sample at last logging
+    std::unordered_map<std::string, PowerSample> prev_energy_info_map_;
 };
 
 }  // namespace implementation

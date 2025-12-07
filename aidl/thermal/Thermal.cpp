@@ -709,13 +709,22 @@ void Thermal::dumpThermalData(int fd, const char **args, uint32_t numArgs) {
                     boot_clock::time_point::min()) {
                     continue;
                 }
+                std::stringstream count_threshold_counted_log;
+                if (sensor_status_pair.second.count_threshold_counted.size()) {
+                    count_threshold_counted_log << std::boolalpha;
+                    count_threshold_counted_log << " CountThresholdCounted: [";
+                    for (bool state : sensor_status_pair.second.count_threshold_counted) {
+                        count_threshold_counted_log << state << " ";
+                    }
+                    count_threshold_counted_log << "]";
+                }
                 dump_buf << " Name: " << sensor_status_pair.first
                          << " CachedValue: " << sensor_status_pair.second.thermal_cached.temp
                          << " TimeToCache: "
                          << std::chrono::duration_cast<std::chrono::milliseconds>(
                                     now - sensor_status_pair.second.thermal_cached.timestamp)
                                     .count()
-                         << "ms" << std::endl;
+                         << "ms" << count_threshold_counted_log.str() << std::endl;
             }
         }
         {

@@ -179,7 +179,7 @@ float ThermalThrottling::updatePowerBudget(
         std::chrono::milliseconds time_elapsed_ms, ThrottlingSeverity curr_severity,
         const bool max_throttling,
         const std::unordered_map<std::string, PowerStatus> &power_status_map,
-        const std::vector<float> &sensor_predictions) {
+        const std::vector<float> &sensor_predictions, const float dt_per_min) {
     float p = 0, d = 0;
     float power_budget = std::numeric_limits<float>::max();
     bool target_changed = false;
@@ -259,7 +259,10 @@ float ThermalThrottling::updatePowerBudget(
                    throttling_status.prev_power_budget <
                            sensor_info.throttling_info->max_alloc_power[target_state] &&
                    !is_fully_release) {
-            throttling_status.i_budget += err * sensor_info.throttling_info->k_iu[target_state];
+            if (std::isnan(sensor_info.throttling_info->i_trend) ||
+                (!std::isnan(dt_per_min) && (dt_per_min <= sensor_info.throttling_info->i_trend))) {
+                throttling_status.i_budget += err * sensor_info.throttling_info->k_iu[target_state];
+            }
         }
     }
 
@@ -321,7 +324,7 @@ float ThermalThrottling::updatePowerBudget(
     LOG(INFO) << temp.name << " power_budget=" << power_budget << " err=" << err
               << " s_power=" << sensor_info.throttling_info->s_power[target_state]
               << " time_elapsed_ms=" << time_elapsed_ms.count() << " p=" << p
-              << " i=" << throttling_status.i_budget << " d=" << d
+              << " i=" << throttling_status.i_budget << " d=" << d << " dt_per_min=" << dt_per_min
               << " compensation=" << compensation << " budget transient=" << budget_transient
               << " control target=" << target_state << " excluded power budget=" << excludepower
               << log_buf;
@@ -343,6 +346,7 @@ float ThermalThrottling::updatePowerBudget(
                static_cast<int>(err / sensor_info.multiplier));
     ATRACE_INT((sensor_name + std::string("-p")).c_str(), static_cast<int>(p));
     ATRACE_INT((sensor_name + std::string("-d")).c_str(), static_cast<int>(d));
+    ATRACE_INT((sensor_name + std::string("-dt_per_min")).c_str(), static_cast<int>(dt_per_min));
     ATRACE_INT((sensor_name + std::string("-predict_compensation")).c_str(),
                static_cast<int>(compensation));
     ATRACE_INT((sensor_name + std::string("-excluded_power_budget")).c_str(),
@@ -391,7 +395,8 @@ bool ThermalThrottling::allocatePowerToCdev(
         const ThrottlingSeverity curr_severity, const std::chrono::milliseconds time_elapsed_ms,
         const std::unordered_map<std::string, PowerStatus> &power_status_map,
         const std::unordered_map<std::string, CdevInfo> &cooling_device_info_map,
-        const bool max_throttling, const std::vector<float> &sensor_predictions) {
+        const bool max_throttling, const std::vector<float> &sensor_predictions,
+        const float dt_per_min) {
     float total_weight = 0;
     float last_updated_avg_power = NAN;
     float allocated_power = 0;
@@ -403,9 +408,9 @@ bool ThermalThrottling::allocatePowerToCdev(
     std::string log_buf;
 
     std::unique_lock<std::shared_mutex> _lock(thermal_throttling_status_map_mutex_);
-    auto total_power_budget =
-            updatePowerBudget(temp, sensor_info, cooling_device_info_map, time_elapsed_ms,
-                              curr_severity, max_throttling, power_status_map, sensor_predictions);
+    auto total_power_budget = updatePowerBudget(temp, sensor_info, cooling_device_info_map,
+                                                time_elapsed_ms, curr_severity, max_throttling,
+                                                power_status_map, sensor_predictions, dt_per_min);
     const auto &profile = thermal_throttling_status_map_[temp.name].profile;
 
     // Go through binded cdev, compute total cdev weight
@@ -759,7 +764,8 @@ void ThermalThrottling::thermalThrottlingUpdate(
         const ThrottlingSeverity curr_severity, const std::chrono::milliseconds time_elapsed_ms,
         const std::unordered_map<std::string, PowerStatus> &power_status_map,
         const std::unordered_map<std::string, CdevInfo> &cooling_device_info_map,
-        const bool max_throttling, const std::vector<float> &sensor_predictions) {
+        const bool max_throttling, const std::vector<float> &sensor_predictions,
+        const float dt_per_min) {
     if (!thermal_throttling_status_map_.count(temp.name)) {
         return;
     }
@@ -771,7 +777,7 @@ void ThermalThrottling::thermalThrottlingUpdate(
     if (thermal_throttling_status_map_[temp.name].pid_power_budget_map.size()) {
         if (!allocatePowerToCdev(temp, sensor_info, curr_severity, time_elapsed_ms,
                                  power_status_map, cooling_device_info_map, max_throttling,
-                                 sensor_predictions)) {
+                                 sensor_predictions, dt_per_min)) {
             LOG(ERROR) << "Sensor " << temp.name << " PID request cdev failed";
             // Clear the CDEV request if the power budget is failed to be allocated
             for (auto &pid_cdev_request_pair :
@@ -900,6 +906,26 @@ bool ThermalThrottling::getCdevMaxRequest(std::string_view cdev_name, int *max_s
     }
     *max_state = *cdev_all_request_map_.at(cdev_name.data()).begin();
     return true;
+}
+
+void ThermalThrottling::logCoolingDeviceStatus(
+        const std::unordered_map<std::string, CdevInfo> &cooling_device_info_map) {
+    int max_state = 0;
+    std::ostringstream cdev_log;
+    for (const auto &[cdev_name, cdev_info] : cooling_device_info_map) {
+        if (getCdevMaxRequest(cdev_name, &max_state)) {
+            ATRACE_INT((cdev_name + std::string("-state")).c_str(), max_state);
+            if (!cdev_info.apply_powercap) {
+                cdev_log << cdev_name << " state:" << max_state << " ";
+            } else {
+                const auto budget = static_cast<int>(
+                        std::lround(cdev_info.state2power[max_state] / cdev_info.multiplier));
+                cdev_log << cdev_name << " state:" << max_state << ",budget:" << budget << " ";
+                ATRACE_INT((cdev_name + std::string("-budget")).c_str(), budget);
+            }
+        }
+    }
+    LOG(INFO) << "CDEV log " << cdev_log.str();
 }
 
 }  // namespace implementation
